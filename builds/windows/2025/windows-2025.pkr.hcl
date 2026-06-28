@@ -14,8 +14,8 @@ packer {
       version = ">= 1.0.0"
     }
     vsphere = {
-      source  = "github.com/hashicorp/vsphere"
-      version = ">= 1.2.0"
+      source  = "github.com/vmware/vsphere"
+      version = ">= 2.0.0"
     }
     windows-update = {
       source  = "github.com/rgl/windows-update"
@@ -26,7 +26,7 @@ packer {
 
 locals {
   scripts_dir = "${path.root}/../../../scripts/windows"
-  vm_name     = "windows-server-2025-${formatdate("YYYYMMDD", timestamp())}"
+  vm_name     = "windows-server-2025-${formatdate("YYYYMMDD-hhmm", timestamp())}"
   autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
     winrm_password     = var.winrm_password
     windows_image_name = var.windows_image_name
@@ -84,10 +84,15 @@ source "qemu" "windows" {
   format       = "qcow2"
   accelerator  = "kvm"
   headless     = var.headless
+
+  # Windows needs virtio drivers injected during install for disk/net.
+  # Supply the virtio-win ISO via var.virtio_iso and reference its drivers
+  # from the Autounattend template. See docs/roadmap.md Phase 2.
   floppy_files = local.floppy_files
   floppy_content = {
     "Autounattend.xml" = local.autounattend_content
   }
+
   communicator     = "winrm"
   winrm_username   = var.winrm_username
   winrm_password   = var.winrm_password
@@ -127,6 +132,11 @@ source "vsphere-iso" "windows" {
   winrm_password      = var.winrm_password
   winrm_timeout       = "12h"
   shutdown_command    = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  # Phase 3A: convert_to_template = true targets a vSphere VM template in a folder.
+  # Phase 3B: switch to the plugin's content_library_destination block and set
+  # convert_to_template = false — the vSphere plugin does not support Content Library
+  # import from a VM that was already converted to a template.
+  # Document the chosen model in docs/vsphere.md before finalising Phase 3.
   convert_to_template = true
 }
 
@@ -139,11 +149,28 @@ build {
     "source.vsphere-iso.windows",
   ]
 
+  # 0. Upload the sysprep script and hardening script; the per-source
+  #    shutdown_command invokes sysprep.ps1, which calls harden-build-access.ps1
+  #    immediately before running Sysprep. Uploading both here (before any
+  #    reboots) ensures they are present regardless of update restart cycles.
   provisioner "file" {
     source      = "${local.scripts_dir}/sysprep.ps1"
     destination = "C:/Windows/Temp/sysprep.ps1"
   }
 
+  provisioner "file" {
+    source      = "${local.scripts_dir}/harden-build-access.ps1"
+    destination = "C:/Windows/Temp/harden-build-access.ps1"
+  }
+
+  # 1. Install hypervisor guest tools first — better drivers, time sync, and
+  #    device behaviour before the machine goes through update/reboot cycles.
+  provisioner "powershell" {
+    environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
+    scripts          = ["${local.scripts_dir}/install-guest-tools.ps1"]
+  }
+
+  # 2. Apply the latest Windows updates (the whole point of scheduled rebuilds).
   provisioner "windows-update" {
     search_criteria = "IsInstalled=0"
     filters = [
@@ -153,6 +180,7 @@ build {
     restart_timeout = "2h"
   }
 
+  # 3. Capture build timestamp and installed patch inventory.
   provisioner "powershell" {
     environment_vars = [
       "PACKER_IMAGE_NAME=${local.vm_name}",
@@ -163,16 +191,12 @@ build {
     scripts = ["${local.scripts_dir}/write-build-report.ps1"]
   }
 
-  provisioner "powershell" {
-    environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
-    scripts          = ["${local.scripts_dir}/install-guest-tools.ps1"]
-  }
-
+  # 4. Clean up to keep the template small.
   provisioner "powershell" {
     scripts = ["${local.scripts_dir}/cleanup.ps1"]
   }
 
-  provisioner "powershell" {
-    scripts = ["${local.scripts_dir}/harden-build-access.ps1"]
-  }
+  # NOTE: harden-build-access is NOT run as a standalone provisioner here.
+  # It is called from inside sysprep.ps1 immediately before Sysprep so that
+  # Packer retains WinRM access until the shutdown_command is invoked.
 }
