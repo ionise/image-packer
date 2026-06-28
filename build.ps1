@@ -122,6 +122,13 @@ try {
     packer init .
 
     $args = @()
+    # Always pass the shared common defaults. config/common.auto.pkrvars.hcl lives
+    # at the repo root and is not auto-loaded by Packer when targeting a
+    # per-version build directory.
+    $commonVarFile = Join-Path $PSScriptRoot "config/common.auto.pkrvars.hcl"
+    if (Test-Path $commonVarFile) {
+        $args += @('-var-file', $commonVarFile)
+    }
     if ($VarFile) { $args += @('-var-file', $VarFile) }
     if ($effectiveWinrmPassword) { $args += @('-var', "winrm_password=$effectiveWinrmPassword") }
     if ($WindowsImageName) { $args += @('-var', "windows_image_name=$WindowsImageName") }

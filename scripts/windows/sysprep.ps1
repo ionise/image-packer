@@ -22,6 +22,13 @@ Write-Host 'Generalizing image with sysprep...'
 
 $sysprep = "$env:SystemRoot\System32\Sysprep\Sysprep.exe"
 
+# Apply final build-time access hardening before Sysprep.
+# harden-build-access.ps1 disables insecure WinRM auth and removes the build
+# account autologon. Calling it here (rather than as a Packer provisioner)
+# ensures Packer retains WinRM access all the way up to shutdown_command.
+Write-Host 'Applying build-time access hardening...'
+& "C:\Windows\Temp\harden-build-access.ps1"
+
 # Remove any stale sysprep tag from a previous run.
 Remove-Item -Path "$env:SystemRoot\System32\Sysprep\Panther" -Recurse -Force -ErrorAction SilentlyContinue
 

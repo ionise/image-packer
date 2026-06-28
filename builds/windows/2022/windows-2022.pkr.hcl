@@ -20,8 +20,8 @@ packer {
       version = ">= 1.0.0"
     }
     vsphere = {
-      source  = "github.com/hashicorp/vsphere"
-      version = ">= 1.2.0"
+      source  = "github.com/vmware/vsphere"
+      version = ">= 2.0.0"
     }
     windows-update = {
       source  = "github.com/rgl/windows-update"
@@ -35,7 +35,7 @@ locals {
   scripts_dir = "${path.root}/../../../scripts/windows"
 
   # Friendly name baked into the produced template / artifact.
-  vm_name = "windows-server-2022-${formatdate("YYYYMMDD", timestamp())}"
+  vm_name = "windows-server-2022-${formatdate("YYYYMMDD-hhmm", timestamp())}"
 
   # Render Autounattend.xml from a template so secrets are injected at build time
   # from var.winrm_password (not committed in git).
@@ -172,6 +172,11 @@ source "vsphere-iso" "windows" {
   winrm_timeout  = "12h"
 
   shutdown_command    = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  # Phase 3A: convert_to_template = true targets a vSphere VM template in a folder.
+  # Phase 3B: switch to the plugin's content_library_destination block and set
+  # convert_to_template = false — the vSphere plugin does not support Content Library
+  # import from a VM that was already converted to a template.
+  # Document the chosen model in docs/vsphere.md before finalising Phase 3.
   convert_to_template = true
 }
 
@@ -187,13 +192,30 @@ build {
     "source.vsphere-iso.windows",
   ]
 
-  # 0. Upload the sysprep script; the per-source shutdown_command runs it last.
+  # 0. Upload the sysprep script and hardening script; the per-source
+  #    shutdown_command invokes sysprep.ps1, which calls harden-build-access.ps1
+  #    immediately before running Sysprep. Uploading both here (before any
+  #    reboots) ensures they are present regardless of update restart cycles.
   provisioner "file" {
     source      = "${local.scripts_dir}/sysprep.ps1"
     destination = "C:/Windows/Temp/sysprep.ps1"
   }
 
-  # 1. Apply the latest Windows updates (the whole point of scheduled rebuilds).
+  provisioner "file" {
+    source      = "${local.scripts_dir}/harden-build-access.ps1"
+    destination = "C:/Windows/Temp/harden-build-access.ps1"
+  }
+
+  # 1. Install hypervisor guest tools first — better drivers, time sync, and
+  #    device behaviour before the machine goes through update/reboot cycles.
+  provisioner "powershell" {
+    environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
+    scripts = [
+      "${local.scripts_dir}/install-guest-tools.ps1",
+    ]
+  }
+
+  # 2. Apply the latest Windows updates (the whole point of scheduled rebuilds).
   provisioner "windows-update" {
     search_criteria = "IsInstalled=0"
     filters = [
@@ -203,7 +225,7 @@ build {
     restart_timeout = "2h"
   }
 
-  # 2. Capture build timestamp and installed patch inventory.
+  # 3. Capture build timestamp and installed patch inventory.
   provisioner "powershell" {
     environment_vars = [
       "PACKER_IMAGE_NAME=${local.vm_name}",
@@ -216,14 +238,6 @@ build {
     ]
   }
 
-  # 3. Install hypervisor guest tools (Guest Additions / virtio / open-vm-tools).
-  provisioner "powershell" {
-    environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
-    scripts = [
-      "${local.scripts_dir}/install-guest-tools.ps1",
-    ]
-  }
-
   # 4. Clean up to keep the template small.
   provisioner "powershell" {
     scripts = [
@@ -231,10 +245,7 @@ build {
     ]
   }
 
-  # 5. Remove build-time remote access posture before generalization.
-  provisioner "powershell" {
-    scripts = [
-      "${local.scripts_dir}/harden-build-access.ps1",
-    ]
-  }
+  # NOTE: harden-build-access is NOT run as a standalone provisioner here.
+  # It is called from inside sysprep.ps1 immediately before Sysprep so that
+  # Packer retains WinRM access until the shutdown_command is invoked.
 }
