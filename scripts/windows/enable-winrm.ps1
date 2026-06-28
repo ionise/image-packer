@@ -15,7 +15,7 @@ $ErrorActionPreference = 'Stop'
 # Log the source drive so builds are easier to diagnose across hypervisors.
 Write-Host "WinRM bootstrap launched from $PSScriptRoot"
 
-# Idempotency guard — safe to run multiple times (FirstLogonCommands may fire
+# Idempotency guard - safe to run multiple times (FirstLogonCommands may fire
 # more than once across reboots, and the loop may find multiple matches).
 if (Get-NetFirewallRule -Name 'WinRM-HTTP-In-Packer' -ErrorAction SilentlyContinue) {
     Write-Host 'WinRM already configured for Packer. Skipping.'
@@ -25,7 +25,7 @@ if (Get-NetFirewallRule -Name 'WinRM-HTTP-In-Packer' -ErrorAction SilentlyContin
 Write-Host 'Configuring WinRM for Packer...'
 
 # Ensure the WinRM service is running and set to start automatically.
-# quickconfig is intentionally omitted — every setting is applied explicitly
+# quickconfig is intentionally omitted - every setting is applied explicitly
 # below, which keeps the build deterministic and auditable.
 Set-Service -Name WinRM -StartupType Automatic
 Start-Service -Name WinRM

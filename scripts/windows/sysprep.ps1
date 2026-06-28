@@ -26,7 +26,7 @@ Write-Host 'Preparing image for generalization...'
 Write-Host 'Checking for pending reboot...'
 $pendingReboot = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
 if ($pendingReboot) {
-    Write-Warning 'Pending reboot detected. Sysprep cannot run safely — rebooting now.'
+    Write-Warning 'Pending reboot detected. Sysprep cannot run safely - rebooting now.'
     Restart-Computer -Force
     exit 1
 }
@@ -40,7 +40,7 @@ if (Test-Path 'C:\Windows\Temp\harden-build-access.ps1') {
     & 'C:\Windows\Temp\harden-build-access.ps1'
 }
 
-# 3. Clear event logs (gold image hygiene — reduces noise in downstream monitoring).
+# 3. Clear event logs (gold image hygiene - reduces noise in downstream monitoring).
 Write-Host 'Clearing event logs...'
 wevtutil el | ForEach-Object { wevtutil cl "$_" 2>$null }
 
