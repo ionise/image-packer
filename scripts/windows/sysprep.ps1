@@ -18,18 +18,35 @@
 #>
 
 $ErrorActionPreference = 'Stop'
+
+Write-Host 'Preparing image for generalization...'
+
+# 1. Pre-flight: abort if a reboot is pending.
+#    Sysprep fails unpredictably when Windows Update or CBS has a pending reboot.
+Write-Host 'Checking for pending reboot...'
+$pendingReboot = Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending'
+if ($pendingReboot) {
+    Write-Warning 'Pending reboot detected. Sysprep cannot run safely — rebooting now.'
+    Restart-Computer -Force
+    exit 1
+}
+
+# 2. Apply final build-time access hardening before Sysprep.
+#    harden-build-access.ps1 disables insecure WinRM auth and removes the build
+#    account autologon. Calling it here (rather than as a Packer provisioner)
+#    ensures Packer retains WinRM access all the way up to shutdown_command.
+if (Test-Path 'C:\Windows\Temp\harden-build-access.ps1') {
+    Write-Host 'Applying build-time access hardening...'
+    & 'C:\Windows\Temp\harden-build-access.ps1'
+}
+
+# 3. Clear event logs (gold image hygiene — reduces noise in downstream monitoring).
+Write-Host 'Clearing event logs...'
+wevtutil el | ForEach-Object { wevtutil cl "$_" 2>$null }
+
+# 4. Generalize.
 Write-Host 'Generalizing image with sysprep...'
-
 $sysprep = "$env:SystemRoot\System32\Sysprep\Sysprep.exe"
-
-# Apply final build-time access hardening before Sysprep.
-# harden-build-access.ps1 disables insecure WinRM auth and removes the build
-# account autologon. Calling it here (rather than as a Packer provisioner)
-# ensures Packer retains WinRM access all the way up to shutdown_command.
-Write-Host 'Applying build-time access hardening...'
-& "C:\Windows\Temp\harden-build-access.ps1"
-
-# Remove any stale sysprep tag from a previous run.
-Remove-Item -Path "$env:SystemRoot\System32\Sysprep\Panther" -Recurse -Force -ErrorAction SilentlyContinue
+Write-Host "Sysprep logs will be written to: $env:SystemRoot\System32\Sysprep\Panther"
 
 & $sysprep /generalize /oobe /shutdown /quiet
