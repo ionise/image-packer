@@ -169,7 +169,4 @@ build {
     scripts = ["${local.scripts_dir}/cleanup.ps1"]
   }
 
-  provisioner "powershell" {
-    scripts = ["${local.scripts_dir}/harden-build-access.ps1"]
-  }
 }

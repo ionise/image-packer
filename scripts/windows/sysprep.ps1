@@ -20,6 +20,27 @@
 $ErrorActionPreference = 'Stop'
 Write-Host 'Generalizing image with sysprep...'
 
+# Final hardening belongs here because Packer still needs WinRM during provisioners.
+Write-Host 'Applying final build-access hardening...'
+try {
+    winrm set winrm/config/service/auth '@{Basic="false"}' | Out-Null
+    winrm set winrm/config/service '@{AllowUnencrypted="false"}' | Out-Null
+    winrm set winrm/config/client/auth '@{Basic="false"}' | Out-Null
+    winrm delete winrm/config/Listener?Address=*+Transport=HTTP | Out-Null
+    Remove-NetFirewallRule -Name 'WinRM-HTTP-In-Packer' | Out-Null
+    Stop-Service -Name WinRM -Force | Out-Null
+    Set-Service -Name WinRM -StartupType Manual | Out-Null
+}
+catch {
+    Write-Warning "WinRM hardening warning: $($_.Exception.Message)"
+}
+
+$winlogon = 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Winlogon'
+Set-ItemProperty -Path $winlogon -Name AutoAdminLogon -Value '0' -Type String -ErrorAction SilentlyContinue | Out-Null
+Remove-ItemProperty -Path $winlogon -Name DefaultUserName -ErrorAction SilentlyContinue | Out-Null
+Remove-ItemProperty -Path $winlogon -Name DefaultPassword -ErrorAction SilentlyContinue | Out-Null
+Remove-ItemProperty -Path $winlogon -Name DefaultDomainName -ErrorAction SilentlyContinue | Out-Null
+
 $sysprep = "$env:SystemRoot\System32\Sysprep\Sysprep.exe"
 
 # Remove any stale sysprep tag from a previous run.

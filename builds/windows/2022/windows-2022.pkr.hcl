@@ -231,10 +231,4 @@ build {
     ]
   }
 
-  # 5. Remove build-time remote access posture before generalization.
-  provisioner "powershell" {
-    scripts = [
-      "${local.scripts_dir}/harden-build-access.ps1",
-    ]
-  }
 }
