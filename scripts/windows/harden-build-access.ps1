@@ -47,4 +47,13 @@ Remove-ItemProperty -Path $winlogon -Name DefaultUserName    -ErrorAction Silent
 Remove-ItemProperty -Path $winlogon -Name DefaultPassword    -ErrorAction SilentlyContinue
 Remove-ItemProperty -Path $winlogon -Name DefaultDomainName  -ErrorAction SilentlyContinue
 
+# Clear the built-in Administrator password so it does not persist in the template.
+# Sysprep /generalize resets machine identity but does not remove the local account
+# password set during installation. A blank password here ensures the template has no
+# residual build credential — clone-time automation must set a new password on first boot.
+Write-Host 'Clearing Administrator password...'
+$admin = [ADSI]'WinNT://./Administrator,user'
+$admin.SetPassword('')
+$admin.SetInfo()
+
 Write-Host 'Build-time access hardening complete.'

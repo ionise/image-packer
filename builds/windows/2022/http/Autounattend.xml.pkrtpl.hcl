@@ -43,12 +43,12 @@
             <CreatePartition wcm:action="add">
               <Order>2</Order>
               <Type>EFI</Type>
-              <Size>100</Size>
+              <Size>200</Size>
             </CreatePartition>
             <CreatePartition wcm:action="add">
               <Order>3</Order>
               <Type>MSR</Type>
-              <Size>128</Size>
+              <Size>16</Size>
             </CreatePartition>
             <CreatePartition wcm:action="add">
               <Order>4</Order>
@@ -166,8 +166,6 @@
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <NetworkLocation>Work</NetworkLocation>
         <ProtectYourPC>3</ProtectYourPC>
-        <SkipMachineOOBE>true</SkipMachineOOBE>
-        <SkipUserOOBE>true</SkipUserOOBE>
       </OOBE>
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
