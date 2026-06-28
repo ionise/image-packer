@@ -87,6 +87,17 @@ MAK key. GVLKs are publicly documented by Microsoft for each Windows Server edit
 and are safe to commit. Do **not** bake a real product key or a MAK key into the
 template.
 
+## Out of scope
+
+This repository does **not**:
+
+- Join machines to Active Directory
+- Configure application workloads
+- Assign static IP addresses
+- Perform environment-specific configuration
+
+These are handled by the provisioning and configuration layers.
+
 ## Repository layout
 
 See [docs/structure.md](docs/structure.md) for the full directory layout and the
