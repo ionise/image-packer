@@ -33,7 +33,7 @@ be safely cloned many times.
 
 The framework must allow multiple **versions** of each OS to live side by side.
 
-- Windows Server — 2016, 2019, 2022, 2025, … — **first focus**
+- Windows Server — 2022, 2025, … — **first focus**
 - Red Hat Enterprise Linux — 8, 9, 10, … — later
 - Rocky Linux — 8, 9, … — later
 - Ubuntu Server — 22.04, 24.04, … — later

@@ -16,8 +16,6 @@ image-packer/
 │
 ├── builds/                       # One folder per OS family, then per version
 │   ├── windows/
-│   │   ├── 2016/                 # (stub)
-│   │   ├── 2019/                 # (stub)
 │   │   ├── 2022/                 # Worked example
 │   │   │   ├── windows-2022.pkr.hcl       # required_plugins + sources + build
 │   │   │   ├── variables.pkr.hcl          # variable declarations

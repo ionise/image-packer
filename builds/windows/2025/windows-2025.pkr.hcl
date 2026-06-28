@@ -28,7 +28,10 @@ locals {
   scripts_dir = "${path.root}/../../../scripts/windows"
   vm_name     = "windows-server-2025-${formatdate("YYYYMMDD", timestamp())}"
   autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
-    winrm_password = var.winrm_password
+    winrm_password     = var.winrm_password
+    windows_image_name = var.windows_image_name
+    windows_image_index = var.windows_image_index
+    firmware_mode      = var.vbox_firmware
   })
   floppy_files = [
     "${local.scripts_dir}/enable-winrm.ps1",

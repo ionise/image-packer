@@ -23,6 +23,18 @@
           <DiskID>0</DiskID>
           <WillWipeDisk>true</WillWipeDisk>
           <CreatePartitions>
+%{ if firmware_mode == "bios" ~}
+            <CreatePartition wcm:action="add">
+              <Order>1</Order>
+              <Type>Primary</Type>
+              <Size>500</Size>
+            </CreatePartition>
+            <CreatePartition wcm:action="add">
+              <Order>2</Order>
+              <Type>Primary</Type>
+              <Extend>true</Extend>
+            </CreatePartition>
+%{ else ~}
             <CreatePartition wcm:action="add">
               <Order>1</Order>
               <Type>Primary</Type>
@@ -43,8 +55,25 @@
               <Type>Primary</Type>
               <Extend>true</Extend>
             </CreatePartition>
+%{ endif ~}
           </CreatePartitions>
           <ModifyPartitions>
+%{ if firmware_mode == "bios" ~}
+            <ModifyPartition wcm:action="add">
+              <Order>1</Order>
+              <PartitionID>1</PartitionID>
+              <Label>System Reserved</Label>
+              <Format>NTFS</Format>
+              <Active>true</Active>
+            </ModifyPartition>
+            <ModifyPartition wcm:action="add">
+              <Order>2</Order>
+              <PartitionID>2</PartitionID>
+              <Label>Windows</Label>
+              <Letter>C</Letter>
+              <Format>NTFS</Format>
+            </ModifyPartition>
+%{ else ~}
             <ModifyPartition wcm:action="add">
               <Order>1</Order>
               <PartitionID>1</PartitionID>
@@ -69,6 +98,7 @@
               <Letter>C</Letter>
               <Format>NTFS</Format>
             </ModifyPartition>
+%{ endif ~}
           </ModifyPartitions>
         </Disk>
       </DiskConfiguration>
@@ -76,13 +106,22 @@
         <OSImage>
           <InstallFrom>
             <MetaData wcm:action="add">
+%{ if windows_image_index != "" ~}
+              <Key>/IMAGE/INDEX</Key>
+              <Value>${windows_image_index}</Value>
+%{ else ~}
               <Key>/IMAGE/NAME</Key>
-              <Value>Windows Server 2025 SERVERSTANDARD</Value>
+              <Value>${windows_image_name}</Value>
+%{ endif ~}
             </MetaData>
           </InstallFrom>
           <InstallTo>
             <DiskID>0</DiskID>
+%{ if firmware_mode == "bios" ~}
+            <PartitionID>2</PartitionID>
+%{ else ~}
             <PartitionID>4</PartitionID>
+%{ endif ~}
           </InstallTo>
         </OSImage>
       </ImageInstall>
