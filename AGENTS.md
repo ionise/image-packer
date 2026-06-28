@@ -62,6 +62,9 @@ The framework must allow multiple **versions** of each OS to live side by side.
   in `*.local.pkrvars.hcl` (gitignored) or environment variables, never committed.
 - **Latest patches at build time**: Windows Update (and Linux equivalents) run as
   a provisioning step so each scheduled build picks up new patches automatically.
+- **DHCP network configuration**: templates are built with DHCP enabled. No static
+  IP is baked into the image — static addressing is applied at clone time by the
+  provisioning layer.
 
 ## License activation policy
 
