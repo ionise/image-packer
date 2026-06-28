@@ -10,6 +10,13 @@ Build a maintainable, scheduled **Packer**-based image factory that produces
 patched, ready-to-template virtual machine images for multiple operating systems
 across multiple hypervisors / clouds.
 
+A **ready-to-template** image guarantees:
+
+- OS fully installed and patched
+- Management channel available (WinRM for Windows / SSH for Linux)
+- Hypervisor tools installed (VirtualBox Guest Additions, VMware Tools, etc.)
+- Generalized (Sysprep `/generalize` for Windows; cloud-init clean state for Linux)
+
 Images are intended to be used as **templates** from which new VMs are cloned.
 At clone time the following are supplied by the cloning/provisioning layer
 (NOT baked into the template):
