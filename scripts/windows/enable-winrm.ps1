@@ -2,12 +2,25 @@
 .SYNOPSIS
     Enables and configures WinRM so Packer can connect to the VM.
 
-    Run automatically by Autounattend.xml on first logon (from the virtual floppy).
+    Run automatically by Autounattend.xml on first logon (from virtual floppy or CD).
+    A drive-discovery loop in the answer file locates this script regardless of the
+    drive letter assigned by the hypervisor, making the bootstrap hypervisor-agnostic.
+
     Configures HTTP WinRM with Basic auth for the build session only. The template
     is later hardened before sysprep by scripts/windows/harden-build-access.ps1.
 #>
 
 $ErrorActionPreference = 'Stop'
+
+# Log the source drive so builds are easier to diagnose across hypervisors.
+Write-Host "WinRM bootstrap launched from $PSScriptRoot"
+
+# Idempotency guard — safe to run multiple times (FirstLogonCommands may fire
+# more than once across reboots, and the loop may find multiple matches).
+if (Get-NetFirewallRule -Name 'WinRM-HTTP-In-Packer' -ErrorAction SilentlyContinue) {
+    Write-Host 'WinRM already configured for Packer. Skipping.'
+    exit 0
+}
 
 Write-Host 'Configuring WinRM for Packer...'
 

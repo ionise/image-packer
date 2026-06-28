@@ -169,8 +169,8 @@
       </OOBE>
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
-          <CommandLine>cmd.exe /c powershell -ExecutionPolicy Bypass -NoProfile -File a:\enable-winrm.ps1</CommandLine>
-          <Description>Enable WinRM for Packer</Description>
+          <CommandLine>cmd.exe /c for %i in (A B C D E F G H) do if exist %i:\enable-winrm.ps1 (echo [WinRM] Launching from %i: &amp; powershell -ExecutionPolicy Bypass -NoProfile -File %i:\enable-winrm.ps1)</CommandLine>
+          <Description>Enable WinRM for Packer (drive-discovery)</Description>
           <Order>1</Order>
         </SynchronousCommand>
       </FirstLogonCommands>
