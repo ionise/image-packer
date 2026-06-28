@@ -87,6 +87,15 @@ MAK key. GVLKs are publicly documented by Microsoft for each Windows Server edit
 and are safe to commit. Do **not** bake a real product key or a MAK key into the
 template.
 
+## Linux bootstrap model
+
+Linux images use **cloud-init** for first-boot configuration (hostname, network,
+users, etc.). Templates must:
+
+- Include cloud-init installed and enabled
+- Be cleaned prior to capture (`cloud-init clean --logs`) so that first-boot
+  runs correctly on every clone
+
 ## Out of scope
 
 This repository does **not**:
