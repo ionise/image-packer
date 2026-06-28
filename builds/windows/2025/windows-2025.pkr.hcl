@@ -68,7 +68,7 @@ source "virtualbox-iso" "windows" {
     ["modifyvm", "{{.Name}}", "--boot1", "dvd"],
     ["modifyvm", "{{.Name}}", "--nat-localhostreachable1", "on"],
   ]
-  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1"
   shutdown_timeout = "30m"
   output_directory = "${path.root}/output/virtualbox"
   format           = "ova"
@@ -97,7 +97,7 @@ source "qemu" "windows" {
   winrm_username   = var.winrm_username
   winrm_password   = var.winrm_password
   winrm_timeout    = "12h"
-  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1"
   output_directory = "${path.root}/output/qemu"
 }
 
@@ -131,7 +131,7 @@ source "vsphere-iso" "windows" {
   winrm_username      = var.winrm_username
   winrm_password      = var.winrm_password
   winrm_timeout       = "12h"
-  shutdown_command    = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  shutdown_command    = "powershell -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1"
   # Phase 3A: convert_to_template = true targets a vSphere VM template in a folder.
   # Phase 3B: switch to the plugin's content_library_destination block and set
   # convert_to_template = false — the vSphere plugin does not support Content Library
@@ -149,28 +149,35 @@ build {
     "source.vsphere-iso.windows",
   ]
 
-  # 0. Upload the sysprep script and hardening script; the per-source
+  # 0. Create a stable staging directory for build control scripts.
+  provisioner "powershell" {
+    inline = [
+      "New-Item -Path 'C:/ProgramData/Packer' -ItemType Directory -Force | Out-Null",
+    ]
+  }
+
+  # 1. Upload the sysprep script and hardening script; the per-source
   #    shutdown_command invokes sysprep.ps1, which calls harden-build-access.ps1
   #    immediately before running Sysprep. Uploading both here (before any
   #    reboots) ensures they are present regardless of update restart cycles.
   provisioner "file" {
     source      = "${local.scripts_dir}/sysprep.ps1"
-    destination = "C:/Windows/Temp/sysprep.ps1"
+    destination = "C:/ProgramData/Packer/sysprep.ps1"
   }
 
   provisioner "file" {
     source      = "${local.scripts_dir}/harden-build-access.ps1"
-    destination = "C:/Windows/Temp/harden-build-access.ps1"
+    destination = "C:/ProgramData/Packer/harden-build-access.ps1"
   }
 
-  # 1. Install hypervisor guest tools first — better drivers, time sync, and
+  # 2. Install hypervisor guest tools first — better drivers, time sync, and
   #    device behaviour before the machine goes through update/reboot cycles.
   provisioner "powershell" {
     environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
     scripts          = ["${local.scripts_dir}/install-guest-tools.ps1"]
   }
 
-  # 2. Apply the latest Windows updates (the whole point of scheduled rebuilds).
+  # 3. Apply the latest Windows updates (the whole point of scheduled rebuilds).
   provisioner "windows-update" {
     search_criteria = "IsInstalled=0"
     filters = [
@@ -180,7 +187,7 @@ build {
     restart_timeout = "2h"
   }
 
-  # 3. Capture build timestamp and installed patch inventory.
+  # 4. Capture build timestamp and installed patch inventory.
   provisioner "powershell" {
     environment_vars = [
       "PACKER_IMAGE_NAME=${local.vm_name}",
@@ -191,7 +198,7 @@ build {
     scripts = ["${local.scripts_dir}/write-build-report.ps1"]
   }
 
-  # 4. Clean up to keep the template small.
+  # 5. Clean up to keep the template small.
   provisioner "powershell" {
     scripts = ["${local.scripts_dir}/cleanup.ps1"]
   }

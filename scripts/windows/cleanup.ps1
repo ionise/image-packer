@@ -15,8 +15,9 @@ Start-Service -Name wuauserv
 Start-Process -FilePath 'Dism.exe' -ArgumentList '/Online','/Cleanup-Image','/StartComponentCleanup','/ResetBase' -Wait -NoNewWindow
 
 # Temp files.
-Remove-Item -Path "$env:TEMP\*"            -Recurse -Force
-Remove-Item -Path "$env:SystemRoot\Temp\*" -Recurse -Force
+# Keep %SystemRoot%\Temp intact during build because Packer stores transient
+# communicator/env scripts there between provisioner calls.
+Remove-Item -Path "$env:TEMP\*" -Recurse -Force
 
 # Clear event logs.
 wevtutil el | ForEach-Object { wevtutil cl "$_" 2>$null }
