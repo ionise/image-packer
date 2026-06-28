@@ -1,0 +1,26 @@
+# Packer build artifacts
+output-*/
+output/
+*.box
+*.ova
+*.ovf
+*.vmdk
+*.qcow2
+packer_cache/
+crash.log
+
+# Packer plugins (installed locally)
+.packer.d/
+*.pkrplugin
+
+# Secrets & local overrides — NEVER commit these
+*.local.pkrvars.hcl
+secrets.local.pkrvars.hcl
+*.local.auto.pkrvars.hcl
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
