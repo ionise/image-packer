@@ -171,7 +171,7 @@
       </OOBE>
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
-          <CommandLine>cmd.exe /c for %i in (A B C D E F G H) do if exist %i:\enable-winrm.ps1 (echo [WinRM] Launching from %i: &amp; powershell -ExecutionPolicy Bypass -NoProfile -File %i:\enable-winrm.ps1)</CommandLine>
+          <CommandLine>powershell -ExecutionPolicy Bypass -NoProfile -Command "foreach ($d in 'A','B','C','D','E','F','G','H') { $f = $d + ':\enable-winrm.ps1'; if (Test-Path $f) { Write-Host ('[WinRM] Launching from ' + $d + ':'); &amp; $f; break } }"</CommandLine>
           <Description>Enable WinRM for Packer (drive-discovery)</Description>
           <Order>1</Order>
         </SynchronousCommand>
