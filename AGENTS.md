@@ -17,7 +17,7 @@ At clone time the following are supplied by the cloning/provisioning layer
 - Hostname
 - Network settings (IP, DNS, gateway / DHCP)
 - Active Directory domain join (Windows)
-- License activation (KMS / MAK / Azure)
+- License activation (Active Directory-based activation or KMS)
 
 The template itself is generalized (e.g. Windows `sysprep /generalize`) so it can
 be safely cloned many times.
@@ -62,6 +62,20 @@ The framework must allow multiple **versions** of each OS to live side by side.
   in `*.local.pkrvars.hcl` (gitignored) or environment variables, never committed.
 - **Latest patches at build time**: Windows Update (and Linux equivalents) run as
   a provisioning step so each scheduled build picks up new patches automatically.
+
+## License activation policy
+
+Activation is expected to occur automatically post-deployment via:
+
+- Active Directory-based activation (preferred), or
+- KMS
+
+Templates must be volume-license compatible (GVLK) and not pre-activated.
+
+Use a Generic Volume License Key (GVLK) in `Autounattend.xml` — not a retail or
+MAK key. GVLKs are publicly documented by Microsoft for each Windows Server edition
+and are safe to commit. Do **not** bake a real product key or a MAK key into the
+template.
 
 ## Repository layout
 
