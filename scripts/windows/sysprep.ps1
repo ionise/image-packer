@@ -39,7 +39,12 @@ Write-Host 'Skipping WinRM hardening during shutdown_command to preserve communi
 
 # 3. Clear event logs (gold image hygiene - reduces noise in downstream monitoring).
 Write-Host 'Clearing event logs...'
-wevtutil el | ForEach-Object { wevtutil cl "$_" 2>$null }
+$logs = @(wevtutil el)
+foreach ($logName in $logs) {
+    # Some channels (especially Analytic/Debug) cannot be cleared while enabled.
+    # Do not fail sysprep for non-critical log-clear errors.
+    cmd.exe /c "wevtutil cl \"$logName\" >nul 2>&1" | Out-Null
+}
 
 # 4. Generalize.
 Write-Host 'Generalizing image with sysprep...'
