@@ -31,14 +31,11 @@ if ($pendingReboot) {
     exit 1
 }
 
-# 2. Apply final build-time access hardening before Sysprep.
-#    harden-build-access.ps1 disables insecure WinRM auth and removes the build
-#    account autologon. Calling it here (rather than as a Packer provisioner)
-#    ensures Packer retains WinRM access all the way up to shutdown_command.
-if (Test-Path 'C:\ProgramData\Packer\harden-build-access.ps1') {
-    Write-Host 'Applying build-time access hardening...'
-    & 'C:\ProgramData\Packer\harden-build-access.ps1'
-}
+# 2. IMPORTANT: Do not harden WinRM inside shutdown_command.
+# Packer executes this script over WinRM; changing auth/listener settings here
+# can break the active communicator before Sysprep starts and cause a 401 error.
+# Keep hardening out of this path so the command can complete reliably.
+Write-Host 'Skipping WinRM hardening during shutdown_command to preserve communicator stability.'
 
 # 3. Clear event logs (gold image hygiene - reduces noise in downstream monitoring).
 Write-Host 'Clearing event logs...'
