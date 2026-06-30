@@ -52,6 +52,12 @@ variable "headless" {
   description = "Run the build without opening a GUI console."
 }
 
+variable "output_root" {
+  type        = string
+  default     = ""
+  description = "Optional base directory for output artifacts. Empty uses this build folder's output directory."
+}
+
 # ---- WinRM / local admin (SECRET) ------------------------------------------
 variable "winrm_username" {
   type        = string

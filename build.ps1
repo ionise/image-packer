@@ -43,6 +43,14 @@
 .PARAMETER WindowsImageIndex
     Optional override for the Windows install image index (/IMAGE/INDEX in
     install.wim). If provided, this takes precedence over WindowsImageName.
+
+.PARAMETER OnError
+    Optional pass-through to `packer build -on-error`. Use `abort` to preserve
+    failed VMs for post-mortem troubleshooting.
+
+.PARAMETER OutputRoot
+    Optional base directory for build outputs. Supports absolute paths or paths
+    relative to the repository root. This is passed to Packer as `output_root`.
 #>
 [CmdletBinding()]
 param(
@@ -55,7 +63,10 @@ param(
     [string] $WinrmPassword,
     [switch] $DisableEphemeralWinrmPassword,
     [string] $WindowsImageName,
-    [string] $WindowsImageIndex
+    [string] $WindowsImageIndex,
+    [ValidateSet('cleanup', 'abort', 'ask', 'run-cleanup-provisioner')]
+    [string] $OnError,
+    [string] $OutputRoot
 )
 
 $ErrorActionPreference = 'Stop'
@@ -122,10 +133,26 @@ try {
     packer init .
 
     $args = @()
+    # Always pass the shared common defaults. config/common.auto.pkrvars.hcl lives
+    # at the repo root and is not auto-loaded by Packer when targeting a
+    # per-version build directory.
+    $commonVarFile = Join-Path $PSScriptRoot "config/common.auto.pkrvars.hcl"
+    if (Test-Path $commonVarFile) {
+        $args += @('-var-file', $commonVarFile)
+    }
     if ($VarFile) { $args += @('-var-file', $VarFile) }
     if ($effectiveWinrmPassword) { $args += @('-var', "winrm_password=$effectiveWinrmPassword") }
     if ($WindowsImageName) { $args += @('-var', "windows_image_name=$WindowsImageName") }
     if ($WindowsImageIndex) { $args += @('-var', "windows_image_index=$WindowsImageIndex") }
+    if ($OutputRoot) {
+        $resolvedOutputRoot = if ([System.IO.Path]::IsPathRooted($OutputRoot)) {
+            $OutputRoot
+        }
+        else {
+            Join-Path $PSScriptRoot $OutputRoot
+        }
+        $args += @('-var', "output_root=$($resolvedOutputRoot -replace '\\', '/')")
+    }
     $args += @("-only=$only", '.')
 
     if ($Validate) {
@@ -134,7 +161,12 @@ try {
     }
     else {
         Write-Host '==> packer build'
-        packer build @args
+        $buildArgs = @()
+        if ($OnError) {
+            $buildArgs += "-on-error=$OnError"
+        }
+        $buildArgs += $args
+        packer build @buildArgs
     }
 }
 finally {

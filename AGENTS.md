@@ -10,6 +10,13 @@ Build a maintainable, scheduled **Packer**-based image factory that produces
 patched, ready-to-template virtual machine images for multiple operating systems
 across multiple hypervisors / clouds.
 
+A **ready-to-template** image guarantees:
+
+- OS fully installed and patched
+- Management channel available (WinRM for Windows / SSH for Linux)
+- Hypervisor tools installed (VirtualBox Guest Additions, VMware Tools, etc.)
+- Generalized (Sysprep `/generalize` for Windows; cloud-init clean state for Linux)
+
 Images are intended to be used as **templates** from which new VMs are cloned.
 At clone time the following are supplied by the cloning/provisioning layer
 (NOT baked into the template):
@@ -17,7 +24,7 @@ At clone time the following are supplied by the cloning/provisioning layer
 - Hostname
 - Network settings (IP, DNS, gateway / DHCP)
 - Active Directory domain join (Windows)
-- License activation (KMS / MAK / Azure)
+- License activation (Active Directory-based activation or KMS)
 
 The template itself is generalized (e.g. Windows `sysprep /generalize`) so it can
 be safely cloned many times.
@@ -33,7 +40,7 @@ be safely cloned many times.
 
 The framework must allow multiple **versions** of each OS to live side by side.
 
-- Windows Server — 2016, 2019, 2022, 2025, … — **first focus**
+- Windows Server — 2022, 2025, … — **first focus**
 - Red Hat Enterprise Linux — 8, 9, 10, … — later
 - Rocky Linux — 8, 9, … — later
 - Ubuntu Server — 22.04, 24.04, … — later
@@ -62,6 +69,43 @@ The framework must allow multiple **versions** of each OS to live side by side.
   in `*.local.pkrvars.hcl` (gitignored) or environment variables, never committed.
 - **Latest patches at build time**: Windows Update (and Linux equivalents) run as
   a provisioning step so each scheduled build picks up new patches automatically.
+- **DHCP network configuration**: templates are built with DHCP enabled. No static
+  IP is baked into the image — static addressing is applied at clone time by the
+  provisioning layer.
+
+## License activation policy
+
+Activation is expected to occur automatically post-deployment via:
+
+- Active Directory-based activation (preferred), or
+- KMS
+
+Templates must be volume-license compatible (GVLK) and not pre-activated.
+
+Use a Generic Volume License Key (GVLK) in `Autounattend.xml` — not a retail or
+MAK key. GVLKs are publicly documented by Microsoft for each Windows Server edition
+and are safe to commit. Do **not** bake a real product key or a MAK key into the
+template.
+
+## Linux bootstrap model
+
+Linux images use **cloud-init** for first-boot configuration (hostname, network,
+users, etc.). Templates must:
+
+- Include cloud-init installed and enabled
+- Be cleaned prior to capture (`cloud-init clean --logs`) so that first-boot
+  runs correctly on every clone
+
+## Out of scope
+
+This repository does **not**:
+
+- Join machines to Active Directory
+- Configure application workloads
+- Assign static IP addresses
+- Perform environment-specific configuration
+
+These are handled by the provisioning and configuration layers.
 
 ## Repository layout
 

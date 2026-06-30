@@ -43,12 +43,12 @@
             <CreatePartition wcm:action="add">
               <Order>2</Order>
               <Type>EFI</Type>
-              <Size>100</Size>
+              <Size>200</Size>
             </CreatePartition>
             <CreatePartition wcm:action="add">
               <Order>3</Order>
               <Type>MSR</Type>
-              <Size>128</Size>
+              <Size>16</Size>
             </CreatePartition>
             <CreatePartition wcm:action="add">
               <Order>4</Order>
@@ -166,13 +166,11 @@
         <HideWirelessSetupInOOBE>true</HideWirelessSetupInOOBE>
         <NetworkLocation>Work</NetworkLocation>
         <ProtectYourPC>3</ProtectYourPC>
-        <SkipMachineOOBE>true</SkipMachineOOBE>
-        <SkipUserOOBE>true</SkipUserOOBE>
       </OOBE>
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
-          <CommandLine>cmd.exe /c powershell -ExecutionPolicy Bypass -NoProfile -File a:\enable-winrm.ps1</CommandLine>
-          <Description>Enable WinRM for Packer</Description>
+          <CommandLine>powershell -ExecutionPolicy Bypass -NoProfile -Command "$drives = [char[]](67..90) + [char[]](65..66); foreach ($d in $drives) { $f = [string]$d + ':\enable-winrm.ps1'; if (Test-Path $f) { Write-Host ('[WinRM] Launching from ' + [string]$d + ':'); &amp; $f; break } }"</CommandLine>
+          <Description>Enable WinRM for Packer (drive-discovery)</Description>
           <Order>1</Order>
         </SynchronousCommand>
       </FirstLogonCommands>

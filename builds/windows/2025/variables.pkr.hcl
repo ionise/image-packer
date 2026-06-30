@@ -2,6 +2,7 @@
 # Windows Server 2025 — variable declarations. See builds/windows/2022 for notes.
 #
 
+# ---- Installation media -----------------------------------------------------
 variable "iso_url" {
   type        = string
   description = "URL or local path to the Windows Server 2025 ISO."
@@ -12,6 +13,18 @@ variable "iso_checksum" {
   description = "Checksum of the ISO, e.g. 'sha256:...'. Use 'none' to skip."
 }
 
+variable "windows_image_name" {
+  type        = string
+  description = "Exact /IMAGE/NAME from install.wim (e.g. Windows Server 2025 Datacenter Evaluation (Desktop Experience))."
+}
+
+variable "windows_image_index" {
+  type        = string
+  default     = ""
+  description = "Optional /IMAGE/INDEX from install.wim. If set, this is used instead of windows_image_name."
+}
+
+# ---- VM sizing --------------------------------------------------------------
 variable "cpus" {
   type    = number
   default = 2
@@ -32,6 +45,13 @@ variable "headless" {
   default = true
 }
 
+variable "output_root" {
+  type        = string
+  default     = ""
+  description = "Optional base directory for output artifacts. Empty uses this build folder's output directory."
+}
+
+# ---- WinRM / local admin (SECRET) ------------------------------------------
 variable "winrm_username" {
   type    = string
   default = "Administrator"
@@ -42,6 +62,7 @@ variable "winrm_password" {
   sensitive = true
 }
 
+# ---- VirtualBox -------------------------------------------------------------
 variable "vbox_guest_os_type" {
   type        = string
   default     = "Windows2022_64"
@@ -54,6 +75,7 @@ variable "vbox_firmware" {
   description = "VirtualBox firmware mode: efi or bios."
 }
 
+# ---- vSphere (only needed when building the vsphere-iso source) -------------
 variable "vsphere_guest_os_type" {
   type    = string
   default = "windows2019srvNext_64Guest"
@@ -110,6 +132,7 @@ variable "vsphere_iso_path" {
   default = ""
 }
 
+# ---- KVM / QEMU -------------------------------------------------------------
 variable "virtio_iso" {
   type    = string
   default = ""

@@ -14,8 +14,8 @@ packer {
       version = ">= 1.0.0"
     }
     vsphere = {
-      source  = "github.com/hashicorp/vsphere"
-      version = ">= 1.2.0"
+      source  = "github.com/vmware/vsphere"
+      version = ">= 2.0.0"
     }
     windows-update = {
       source  = "github.com/rgl/windows-update"
@@ -26,13 +26,20 @@ packer {
 
 locals {
   scripts_dir = "${path.root}/../../../scripts/windows"
-  vm_name     = "windows-server-2025-${formatdate("YYYYMMDD", timestamp())}"
+  output_root = var.output_root != "" ? replace(var.output_root, "\\", "/") : "${path.root}/output"
+  vm_name     = "windows-server-2025-${formatdate("YYYYMMDD-hhmm", timestamp())}"
   autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
-    winrm_password = var.winrm_password
+    winrm_password     = var.winrm_password
+    windows_image_name = var.windows_image_name
+    windows_image_index = var.windows_image_index
+    firmware_mode      = var.vbox_firmware
   })
-  floppy_files = [
+  config_iso_files = [
     "${local.scripts_dir}/enable-winrm.ps1",
   ]
+  config_iso_content = {
+    "Autounattend.xml" = local.autounattend_content
+  }
 }
 
 source "virtualbox-iso" "windows" {
@@ -46,10 +53,8 @@ source "virtualbox-iso" "windows" {
   hard_drive_interface = "sata"
   firmware             = var.vbox_firmware
   headless             = var.headless
-  floppy_files         = local.floppy_files
-  floppy_content = {
-    "Autounattend.xml" = local.autounattend_content
-  }
+  cd_files             = local.config_iso_files
+  cd_content           = local.config_iso_content
   guest_additions_mode = "attach"
   communicator         = "winrm"
   winrm_username       = var.winrm_username
@@ -65,9 +70,15 @@ source "virtualbox-iso" "windows" {
     ["modifyvm", "{{.Name}}", "--boot1", "dvd"],
     ["modifyvm", "{{.Name}}", "--nat-localhostreachable1", "on"],
   ]
-  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  # Explicit keypress for EFI/DVD prompt to keep install boot deterministic.
+  boot_wait              = "5s"
+  boot_keygroup_interval = "100ms"
+  boot_command           = ["<enter><wait>"]
+  # Sysprep runs as the final provisioner in /quit mode; this is only the
+  # explicit OS shutdown Packer waits on afterward.
+  shutdown_command = "shutdown /s /t 5 /f /d p:4:1 /c \"Packer final shutdown\""
   shutdown_timeout = "30m"
-  output_directory = "${path.root}/output/virtualbox"
+  output_directory = "${local.output_root}/virtualbox/${local.vm_name}"
   format           = "ova"
 }
 
@@ -81,16 +92,19 @@ source "qemu" "windows" {
   format       = "qcow2"
   accelerator  = "kvm"
   headless     = var.headless
-  floppy_files = local.floppy_files
-  floppy_content = {
-    "Autounattend.xml" = local.autounattend_content
-  }
+
+  # Windows needs virtio drivers injected during install for disk/net.
+  # Supply the virtio-win ISO via var.virtio_iso and reference its drivers
+  # from the Autounattend template. See docs/roadmap.md Phase 2.
+  cd_files    = local.config_iso_files
+  cd_content  = local.config_iso_content
+
   communicator     = "winrm"
   winrm_username   = var.winrm_username
   winrm_password   = var.winrm_password
   winrm_timeout    = "12h"
-  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
-  output_directory = "${path.root}/output/qemu"
+  shutdown_command = "shutdown /s /t 5 /f /d p:4:1 /c \"Packer final shutdown\""
+  output_directory = "${local.output_root}/qemu/${local.vm_name}"
 }
 
 source "vsphere-iso" "windows" {
@@ -114,16 +128,19 @@ source "vsphere-iso" "windows" {
     disk_size             = var.disk_size
     disk_thin_provisioned = true
   }
-  iso_paths    = [var.vsphere_iso_path]
-  floppy_files = local.floppy_files
-  floppy_content = {
-    "Autounattend.xml" = local.autounattend_content
-  }
+  iso_paths   = [var.vsphere_iso_path]
+  cd_files    = local.config_iso_files
+  cd_content  = local.config_iso_content
   communicator        = "winrm"
   winrm_username      = var.winrm_username
   winrm_password      = var.winrm_password
   winrm_timeout       = "12h"
-  shutdown_command    = "powershell -ExecutionPolicy Bypass -File C:/Windows/Temp/sysprep.ps1"
+  shutdown_command    = "shutdown /s /t 5 /f /d p:4:1 /c \"Packer final shutdown\""
+  # Phase 3A: convert_to_template = true targets a vSphere VM template in a folder.
+  # Phase 3B: switch to the plugin's content_library_destination block and set
+  # convert_to_template = false — the vSphere plugin does not support Content Library
+  # import from a VM that was already converted to a template.
+  # Document the chosen model in docs/vsphere.md before finalising Phase 3.
   convert_to_template = true
 }
 
@@ -136,11 +153,35 @@ build {
     "source.vsphere-iso.windows",
   ]
 
-  provisioner "file" {
-    source      = "${local.scripts_dir}/sysprep.ps1"
-    destination = "C:/Windows/Temp/sysprep.ps1"
+  # 0. Create a stable staging directory for build control scripts.
+  provisioner "powershell" {
+    inline = [
+      "New-Item -Path 'C:/ProgramData/Packer' -ItemType Directory -Force | Out-Null",
+    ]
   }
 
+  # 1. Upload the sysprep script and hardening script; the per-source
+  #    shutdown_command invokes sysprep.ps1, which calls harden-build-access.ps1
+  #    immediately before running Sysprep. Uploading both here (before any
+  #    reboots) ensures they are present regardless of update restart cycles.
+  provisioner "file" {
+    source      = "${local.scripts_dir}/sysprep.ps1"
+    destination = "C:/ProgramData/Packer/sysprep.ps1"
+  }
+
+  provisioner "file" {
+    source      = "${local.scripts_dir}/harden-build-access.ps1"
+    destination = "C:/ProgramData/Packer/harden-build-access.ps1"
+  }
+
+  # 2. Install hypervisor guest tools first — better drivers, time sync, and
+  #    device behaviour before the machine goes through update/reboot cycles.
+  provisioner "powershell" {
+    environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
+    scripts          = ["${local.scripts_dir}/install-guest-tools.ps1"]
+  }
+
+  # 3. Apply the latest Windows updates (the whole point of scheduled rebuilds).
   provisioner "windows-update" {
     search_criteria = "IsInstalled=0"
     filters = [
@@ -150,6 +191,7 @@ build {
     restart_timeout = "2h"
   }
 
+  # 4. Capture build timestamp and installed patch inventory.
   provisioner "powershell" {
     environment_vars = [
       "PACKER_IMAGE_NAME=${local.vm_name}",
@@ -160,13 +202,20 @@ build {
     scripts = ["${local.scripts_dir}/write-build-report.ps1"]
   }
 
-  provisioner "powershell" {
-    environment_vars = ["PACKER_BUILDER_TYPE=${source.type}"]
-    scripts          = ["${local.scripts_dir}/install-guest-tools.ps1"]
-  }
-
+  # 5. Clean up to keep the template small.
   provisioner "powershell" {
     scripts = ["${local.scripts_dir}/cleanup.ps1"]
   }
 
+  # 6. Generalize without shutting down so communicator remains stable.
+  # Packer then performs the source shutdown_command above.
+  provisioner "powershell" {
+    inline = [
+      "powershell -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1 -Mode quit",
+    ]
+  }
+
+  # NOTE: harden-build-access is NOT run as a standalone provisioner here.
+  # It is called from inside sysprep.ps1 immediately before Sysprep so that
+  # Packer retains WinRM access until final shutdown_command is invoked.
 }
