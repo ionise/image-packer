@@ -26,6 +26,7 @@ packer {
 
 locals {
   scripts_dir = "${path.root}/../../../scripts/windows"
+  output_root = var.output_root != "" ? replace(var.output_root, "\\", "/") : "${path.root}/output"
   vm_name     = "windows-server-2025-${formatdate("YYYYMMDD-hhmm", timestamp())}"
   autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
     winrm_password     = var.winrm_password
@@ -68,9 +69,11 @@ source "virtualbox-iso" "windows" {
     ["modifyvm", "{{.Name}}", "--boot1", "dvd"],
     ["modifyvm", "{{.Name}}", "--nat-localhostreachable1", "on"],
   ]
-  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1"
+  # Sysprep runs as the final provisioner in /quit mode; this is only the
+  # explicit OS shutdown Packer waits on afterward.
+  shutdown_command = "shutdown /s /t 5 /f /d p:4:1 /c \"Packer final shutdown\""
   shutdown_timeout = "30m"
-  output_directory = "${path.root}/output/virtualbox"
+  output_directory = "${local.output_root}/virtualbox/${local.vm_name}"
   format           = "ova"
 }
 
@@ -97,8 +100,8 @@ source "qemu" "windows" {
   winrm_username   = var.winrm_username
   winrm_password   = var.winrm_password
   winrm_timeout    = "12h"
-  shutdown_command = "powershell -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1"
-  output_directory = "${path.root}/output/qemu"
+  shutdown_command = "shutdown /s /t 5 /f /d p:4:1 /c \"Packer final shutdown\""
+  output_directory = "${local.output_root}/qemu/${local.vm_name}"
 }
 
 source "vsphere-iso" "windows" {
@@ -131,7 +134,7 @@ source "vsphere-iso" "windows" {
   winrm_username      = var.winrm_username
   winrm_password      = var.winrm_password
   winrm_timeout       = "12h"
-  shutdown_command    = "powershell -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1"
+  shutdown_command    = "shutdown /s /t 5 /f /d p:4:1 /c \"Packer final shutdown\""
   # Phase 3A: convert_to_template = true targets a vSphere VM template in a folder.
   # Phase 3B: switch to the plugin's content_library_destination block and set
   # convert_to_template = false — the vSphere plugin does not support Content Library
@@ -203,7 +206,15 @@ build {
     scripts = ["${local.scripts_dir}/cleanup.ps1"]
   }
 
+  # 6. Generalize without shutting down so communicator remains stable.
+  # Packer then performs the source shutdown_command above.
+  provisioner "powershell" {
+    inline = [
+      "powershell -NoProfile -ExecutionPolicy Bypass -File C:/ProgramData/Packer/sysprep.ps1 -Mode quit",
+    ]
+  }
+
   # NOTE: harden-build-access is NOT run as a standalone provisioner here.
   # It is called from inside sysprep.ps1 immediately before Sysprep so that
-  # Packer retains WinRM access until the shutdown_command is invoked.
+  # Packer retains WinRM access until final shutdown_command is invoked.
 }
