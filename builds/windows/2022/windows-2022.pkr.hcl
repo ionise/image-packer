@@ -49,10 +49,14 @@ locals {
     firmware_mode      = var.vbox_firmware
   })
 
-  # Bootstrap scripts presented to the installer on floppy.
-  floppy_files = [
+  # Bootstrap scripts presented on a generated config ISO.
+  config_iso_files = [
     "${local.scripts_dir}/enable-winrm.ps1",
   ]
+
+  config_iso_content = {
+    "Autounattend.xml" = local.autounattend_content
+  }
 }
 
 # ---------------------------------------------------------------------------
@@ -70,11 +74,9 @@ source "virtualbox-iso" "windows" {
   hard_drive_interface = "sata"
   firmware             = var.vbox_firmware
 
-  headless     = var.headless
-  floppy_files = local.floppy_files
-  floppy_content = {
-    "Autounattend.xml" = local.autounattend_content
-  }
+  headless    = var.headless
+  cd_files    = local.config_iso_files
+  cd_content  = local.config_iso_content
   guest_additions_mode = "attach"
 
   # WinRM is brought up by enable-winrm.ps1 during the unattended install.
@@ -93,6 +95,11 @@ source "virtualbox-iso" "windows" {
     ["modifyvm", "{{.Name}}", "--boot1", "dvd"],
     ["modifyvm", "{{.Name}}", "--nat-localhostreachable1", "on"],
   ]
+
+  # Explicit keypress for EFI/DVD prompt to keep install boot deterministic.
+  boot_wait              = "5s"
+  boot_keygroup_interval = "100ms"
+  boot_command           = ["<enter><wait>"]
 
   # Sysprep runs as the final provisioner in /quit mode; this is only the
   # explicit OS shutdown Packer waits on afterward.
@@ -121,10 +128,8 @@ source "qemu" "windows" {
   # Windows needs virtio drivers injected during install for disk/net.
   # Supply the virtio-win ISO via var.virtio_iso and reference its drivers
   # from the Autounattend template. See docs/roadmap.md Phase 2.
-  floppy_files = local.floppy_files
-  floppy_content = {
-    "Autounattend.xml" = local.autounattend_content
-  }
+  cd_files    = local.config_iso_files
+  cd_content  = local.config_iso_content
 
   communicator   = "winrm"
   winrm_username = var.winrm_username
@@ -164,11 +169,9 @@ source "vsphere-iso" "windows" {
     disk_thin_provisioned = true
   }
 
-  iso_paths    = [var.vsphere_iso_path]
-  floppy_files = local.floppy_files
-  floppy_content = {
-    "Autounattend.xml" = local.autounattend_content
-  }
+  iso_paths   = [var.vsphere_iso_path]
+  cd_files    = local.config_iso_files
+  cd_content  = local.config_iso_content
 
   communicator   = "winrm"
   winrm_username = var.winrm_username

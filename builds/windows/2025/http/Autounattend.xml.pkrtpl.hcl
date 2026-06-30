@@ -171,7 +171,7 @@
       </OOBE>
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
-          <CommandLine>powershell -ExecutionPolicy Bypass -NoProfile -Command "foreach ($d in 'A','B','C','D','E','F','G','H') { $f = $d + ':\enable-winrm.ps1'; if (Test-Path $f) { Write-Host ('[WinRM] Launching from ' + $d + ':'); &amp; $f; break } }"</CommandLine>
+          <CommandLine>powershell -ExecutionPolicy Bypass -NoProfile -Command "$drives = [char[]](67..90) + [char[]](65..66); foreach ($d in $drives) { $f = [string]$d + ':\enable-winrm.ps1'; if (Test-Path $f) { Write-Host ('[WinRM] Launching from ' + [string]$d + ':'); &amp; $f; break } }"</CommandLine>
           <Description>Enable WinRM for Packer (drive-discovery)</Description>
           <Order>1</Order>
         </SynchronousCommand>

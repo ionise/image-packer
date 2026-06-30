@@ -20,5 +20,5 @@ disk_size = 61440
 # Show the VirtualBox console while developing the Autounattend.xml; set true for CI.
 headless = false
 
-# Use BIOS for now because EFI currently presents a blank VirtualBox console on this host.
-vbox_firmware = "bios"
+# EFI-first baseline for consistency across Windows and Linux image builds.
+vbox_firmware = "efi"

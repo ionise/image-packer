@@ -305,6 +305,43 @@ Minimal clone-time flow:
 4. Set the local Administrator password during guest customization/first boot.
 5. Register/rotate credential in lifecycle system (LAPS or PAM).
 
+### Secure unattended over HTTP (checklist)
+
+If unattended assets are served over HTTP/HTTPS (Autounattend, kickstart,
+cloud-init data, bootstrap scripts), use this checklist.
+
+1. Prefer config ISO for secrets when practical.
+2. If HTTP is used, bind the temporary web server to loopback or a private
+	build network only.
+3. Restrict access with host firewall rules so only the build VM can reach it.
+4. Use one-time per-build credentials and rotate/disable immediately after build.
+5. Keep secrets out of git and out of logs.
+6. Keep server lifetime short: serve only during install/provisioning window.
+7. For Linux unattended flows, prefer password hashes and short-lived tokens,
+	not cleartext credentials.
+8. For shared/larger environments, prefer HTTPS and certificate validation.
+
+#### Using your own CA for trust
+
+Yes. Using your own internal CA is the recommended way to establish trust for
+HTTPS-based unattended delivery.
+
+Recommended pattern:
+
+1. Issue a short-lived server certificate for the unattended content endpoint
+	from your internal CA.
+2. Ensure the guest trusts that CA before it fetches protected content:
+	- Windows: include/import the CA certificate during setup (or via early
+	  first-boot command) before HTTPS fetches.
+	- Linux: place the CA cert into the system trust store early in install, then
+	  refresh trust (for example update-ca-trust / update-ca-certificates).
+3. Keep certificate scope narrow (build hostname only), use short expiry, and
+	rotate regularly.
+4. Keep network ACLs in place even with TLS.
+
+If CA bootstrap cannot be guaranteed in early setup, use a config ISO for
+secrets and reserve HTTP for non-secret payloads.
+
 ### Targeting other hypervisors
 
 Switch `-Hypervisor` to `kvm` or `vsphere` (these are scaffolded as stubs — see the
