@@ -28,20 +28,33 @@ locals {
   scripts_dir = "${path.root}/../../../scripts/windows"
   output_root = var.output_root != "" ? replace(var.output_root, "\\", "/") : "${path.root}/output"
   vm_name     = "windows-server-2025-${formatdate("YYYYMMDD-hhmm", timestamp())}"
-  autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
-    winrm_password     = var.winrm_password
-    windows_image_name = var.windows_image_name
+
+  vbox_autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
+    winrm_password      = var.winrm_password
+    windows_image_name  = var.windows_image_name
     windows_image_index = var.windows_image_index
-    firmware_mode      = var.vbox_firmware
+    firmware_mode       = var.vbox_firmware
   })
+
+  qemu_autounattend_content = templatefile("${path.root}/http/Autounattend.xml.pkrtpl.hcl", {
+    winrm_password      = var.winrm_password
+    windows_image_name  = var.windows_image_name
+    windows_image_index = var.windows_image_index
+    firmware_mode       = var.qemu_firmware_mode
+  })
+
   config_iso_files = [
     "${local.scripts_dir}/enable-winrm.ps1",
   ]
-  config_iso_content = {
-    "Autounattend.xml" = local.autounattend_content
+
+  vbox_config_iso_content = {
+    "Autounattend.xml" = local.vbox_autounattend_content
+  }
+
+  qemu_config_iso_content = {
+    "Autounattend.xml" = local.qemu_autounattend_content
   }
 }
-
 source "virtualbox-iso" "windows" {
   vm_name              = local.vm_name
   guest_os_type        = var.vbox_guest_os_type
@@ -54,7 +67,7 @@ source "virtualbox-iso" "windows" {
   firmware             = var.vbox_firmware
   headless             = var.headless
   cd_files             = local.config_iso_files
-  cd_content           = local.config_iso_content
+  cd_content           = local.vbox_config_iso_content
   guest_additions_mode = "attach"
   communicator         = "winrm"
   winrm_username       = var.winrm_username
@@ -86,19 +99,29 @@ source "qemu" "windows" {
   vm_name      = local.vm_name
   iso_url      = var.iso_url
   iso_checksum = var.iso_checksum
-  cpus         = var.cpus
-  memory       = var.memory
-  disk_size    = "${var.disk_size}M"
-  format       = "qcow2"
-  accelerator  = "kvm"
-  headless     = var.headless
+  machine_type = "q35"
+  cpu_model    = "host"  
 
-  # Windows needs virtio drivers injected during install for disk/net.
-  # Supply the virtio-win ISO via var.virtio_iso and reference its drivers
-  # from the Autounattend template. See docs/roadmap.md Phase 2.
-  cd_files    = local.config_iso_files
-  cd_content  = local.config_iso_content
 
+  cpus        = var.cpus
+  memory      = var.memory
+  disk_size   = "${var.disk_size}M"
+  format      = "qcow2"
+  accelerator = "kvm"
+  headless    = var.headless
+
+  # Added: avoid virtio boot-driver loop during early Windows install
+  disk_interface = "ide"
+  net_device     = "e1000"
+
+  # Added: boot from DVD first, then disk
+  boot_wait    = "5s"
+  boot_command = ["<enter><wait>"]
+  qemuargs = [
+    ["-boot", "once=d,menu=on"],
+  ] 
+  cd_files   = local.config_iso_files
+  cd_content = local.qemu_config_iso_content
   communicator     = "winrm"
   winrm_username   = var.winrm_username
   winrm_password   = var.winrm_password
@@ -130,7 +153,7 @@ source "vsphere-iso" "windows" {
   }
   iso_paths   = [var.vsphere_iso_path]
   cd_files    = local.config_iso_files
-  cd_content  = local.config_iso_content
+  cd_content = local.vbox_config_iso_content
   communicator        = "winrm"
   winrm_username      = var.winrm_username
   winrm_password      = var.winrm_password

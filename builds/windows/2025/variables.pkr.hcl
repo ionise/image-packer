@@ -75,6 +75,13 @@ variable "vbox_firmware" {
   description = "VirtualBox firmware mode: efi or bios."
 }
 
+variable "qemu_firmware_mode" {
+  type = string
+  default = "bios"
+  description = "QEMU firmware mode used to render Autounattend partition layout: efi or bios."
+}
+
+
 # ---- vSphere (only needed when building the vsphere-iso source) -------------
 variable "vsphere_guest_os_type" {
   type    = string
